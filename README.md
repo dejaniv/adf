@@ -20,7 +20,7 @@ You don't have to use ribbon cable nor power cable but I find it easier to hook 
 
 ![picture](project.png)
 
-As you can se in the picture I did a great job by the book. Of course, the circuit rings like church bell on Sunday morning but given that the signals are within 10 MHz range this has no effect on final result.
+As you can see in the picture I did a great job by the book. Of course, the circuit rings like church bell on Sunday morning but given that the signals are within 10MHz range this has no effect on final result.
 
 ## Schematics
 
@@ -36,10 +36,11 @@ In order to build and run the code you need to use this BeagleBone Black debian 
 
 I used root access to build and run the program.
 
-You will need `git` to clone this repository:
+You will need `git` to clone this repository and `cmake` to build.
 
 ```bash
 apt install git
+apt install cmake
 ```
 
 ## Building
@@ -72,7 +73,7 @@ cd adf
 ./build/adf
 ```
 
-After you run the code you will see two artifacts in the same directory:
+After you run the code you will see two artifacts in the current working directory:
 
 - `out.adf` is your ADF format Amiga disk that you can use with UAE emulator
 - `hist.txt` is CSV file which is histogram of pulse widths (see description below)
@@ -87,21 +88,21 @@ of ones and zeros in the bit stream close to constant.
 - 1 data bit is encoded as 01
 - 0 data bit is encoded as either 10 (if following 0 data bit) or 00 (if following 1 data bit)
 
-The decoder can simply mask-out higher bits and "squeeze" the rest of the bits into the resulting word. Amiga writes 32-bit words and it first encodes odd bits and then even bits.
+The decoder can simply mask-out higher bits and "squeeze" the rest of the bits into the resulting decoded word. Amiga writes 32-bit words and it first encodes odd bits and then even bits.
 
 ### Signals
 
-This how signal captured on GPIO pin connected to `/RDATA` signal looks like (if you use optional resistor):
+The following figure shows signal captured on GPIO pin connected to `/RDATA` (if you use optional resistor):
 
 ![image](disk_signal_pru_with_R.png)
 
-The yellow chanel is the actual signal from `/RDATA` and the red channel is `TEST_SIGNAL`. The low impulses (`/RDATA` is active low) are very short and they signify '1' in MFM encoded data stream. The length of each symbol in the stream is 1us. The symbol '1' is thus followed by either one, two or three '0' symbols. By measuring distance between falling edges of low impulses we can determine how many symbols '0' follow symbol '1'.
+The yellow channel is the actual signal from `/RDATA` and the red channel is `TEST_SIGNAL`. The low impulses (`/RDATA` is active low) are very short and they signify '1' in MFM encoded data stream. The length of each symbol in the stream is 1us. Symbol '1' is thus followed by either one, two or three '0' symbols. By measuring distance between falling edges of low impulses we can determine how many symbols '0' follow symbol '1'.
 
-The red channel shows how "rectified" signal looks like. If the red channel doesn't follow yellow channel closely we are using too many instruction cycles between sampling `/RDATA`.
+Red channel shows how "rectified" signal looks like. If the red channel doesn't follow yellow channel closely we are using too many instruction cycles between sampling `/RDATA`.
 
-I used test signal (red channel) to debug and optimize the decoding algorithms. You can use `DEBUG_SIGNAL_ENABLED` variable in the code to control when test channel signal is active. That way you can observe header, data and synchronization signals separately.
+I used test signal (red channel) to debug and optimize the decoding algorithms. You can use `DEBUG_SIGNAL_ENABLED` variable in the code to control when test channel signal is active. That way you can observe header, data and synchronization words in the stream separately.
 
-Without optional resistor the signal will look like the one captured in my workbench picture. The yellow channel signal looks very skewed because we are using only built-in pull-up resistor. Adding external pull-up in parallel reduces total resistance and increases the current that feeds parasitic capacitances making the recovery time shorter. The resistor is necessary if you wan to to read High Density (HD) disks because in that case recovery time is longer than the shortest time between low-impulses.
+Without optional resistor the signal will look like the one captured in my workbench picture. The yellow channel signal looks very skewed because only built-in pull-up resistor is used. Adding external pull-up in parallel reduces total resistance and increases the current that feeds parasitic capacitances making the recovery time shorter. The resistor is necessary if you wan to to read High Density (HD) disks because in that case recovery time is longer than the shortest time between low-impulses.
 
 The PRU firmware creates histogram of length of all intervals between low-impulse falling edges and the main program will write the histogram to "hist.txt" CSV file. Here is an example of the histogram for HD disk:
 
@@ -123,7 +124,7 @@ There are a few pulses that happened very close to decision points and these are
 
 There are two build artifacts after the project builds successfully: main executable (`adf` from `main.cpp`) and PRU firmware (`am335x-pru0-adf-fw` from`firmware/pru.c`).
 
-Programable Realtime Unit [PRU](https://beagleboard.org/pru) is part of Ti AM335x system on chip. It is ARM real-time core running at 200 MHz. It can access limited memory very fast. The memory is shared with main CPU and it is used for communication between PRU and the main core. We use PRU because it runs firmware only and thus can deterministically measure events such as width of a time pulse present on a GPIO pin. The shortest pulse width we measure is 2us which gives as at most 400 instruction cycles for decoding algorithm.
+Programable Realtime Unit [PRU](https://beagleboard.org/pru) is part of Ti AM335x system on chip. It is ARM real-time core running at 200 MHz. It can access limited memory very fast. The memory is shared with main CPU and it is used for communication between PRU and the main core. We use PRU because it runs firmware only and thus can deterministically measure events such as width of a time pulse present on a GPIO pin. The shortest pulse width we measure is 2us which allowes at most 400 instruction cycles for decoding algorithm.
 
 Main program uploads firmware to Programable Realtime Unit (PRU) and sets up shared memory to communicate with it. The main program turns the drive on and off, moves the drive's head and writes data to file. PRU firmware reads entire track, decodes it and puts the result into shared memory. The main program processes the data, checks for errors and writes data to the file.
 
